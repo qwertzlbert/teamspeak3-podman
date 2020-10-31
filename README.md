@@ -20,6 +20,6 @@ This is only tested for X11 environments and might not run with Wayland!
 ## Comment
 
 Thanks to @fadams for giving examples sharing audio and display ressources with containers. Especially:
-	- https://github.com/TheBiggerGuy/docker-pulseaudio-example/issues/1
-	- https://github.com/fadams/docker-gui
+- https://github.com/TheBiggerGuy/docker-pulseaudio-example/issues/1
+- https://github.com/fadams/docker-gui
 	
