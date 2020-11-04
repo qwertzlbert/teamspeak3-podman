@@ -11,6 +11,7 @@ buildah run $crt apt-get update
 # ad flag to allow silent install as it is asking for location
 buildah run $crt env DEBIAN_FRONTEND=noninteractive apt-get install -y \
 					curl \
+					sudo \
 					pulseaudio-utils \
 					software-properties-common \
 					libgl1-mesa-glx \
@@ -27,9 +28,15 @@ buildah run $crt env DEBIAN_FRONTEND=noninteractive apt-get install -y \
 					libxslt1.1 \
 					xcb \
 					qt5-default \
+					x11-xserver-utils \
 					--no-install-recommends \
 					&& rm -rf /var/lib/apt/lists/*
 buildah copy $crt pulse-client.conf /etc/pulse/client.conf
+
+# setup spotify user and pulseaudio
+buildah run $crt useradd --create-home -u 1600 -d /home/ts3_user ts3_user
+buildah run $crt gpasswd -a ts3_user audio 
+buildah run $crt chown -R ts3_user:ts3_user /home/ts3_user
 
 # setup teamspeak
 buildah run $crt mkdir -p /opt/bin/ts3
@@ -38,5 +45,12 @@ buildah run $crt env sha512sum=$sha512sum bash -c 'echo "$sha512sum /opt/bin/ts3
 buildah run $crt chmod +x /opt/bin/ts3/teamspeak3.run
 buildah run $crt bash -c 'yes | /opt/bin/ts3/teamspeak3.run'
 
-buildah config --entrypoint "/TeamSpeak3-Client-linux_amd64/ts3client_runscript.sh --no-sandbox" $crt
+buildah config --entrypoint "cp -a /tmp/pulse-cookie /tmp/pulse-ts3-cookie && \
+							chown ts3_user:ts3_user /tmp/pulse-ts3-cookie && \
+							xhost local:root && \
+							sudo -u ts3_user \
+							PULSE_COOKIE=/tmp/pulse-ts3-cookie \
+							PULSE_SERVER=unix:/tmp/pulse-socket /TeamSpeak3-Client-linux_amd64/ts3client_runscript.sh" \
+							$crt
+
 buildah commit $crt ts3pod
