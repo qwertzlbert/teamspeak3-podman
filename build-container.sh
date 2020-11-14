@@ -1,9 +1,60 @@
 #!/usr/bin/env bash
 
-#podman run -it --rm -e PULSE_SERVER=unix:$XDG_RUNTIME_DIR/pulse/native -e DISPLAY=unix$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix -v $XDG_RUNTIME_DIR/pulse:$XDG_RUNTIME_DIR/pulse:ro -v $HOME/.config/pulse/cookie:$HOME/.config/pulse/cookie:ro  $HOME/.ts3client:/root/.ts3client:shared --name test-ts3 ts3pod bash
+GETOPT=/usr/bin/getopt
+PROG=${0##*/}
 
-pkgver=3.5.3
-sha512sum='8b0ea835b179596ec16c092790383691650f6cb92b97d4ab2012872edc2f4d82e0b3a3ea4551651c4824703b9ef01ba9c95a50ee262d5f279151d780dc3faef6'
+pkgver=3.5.5
+sha512sum='0f915a5a9d67389305c7e643177ee799bae8087a07512db933810cc128746e6f303aa55ce08920fac356a001344c4838dea4cea1329622850fba2a1b6344a3be'
+ 
+function usage ()
+{
+cat <<EOF
+usage: $PROG [options] 
+$PROG will build a podman container containing teamspeak client. Audio is passed through using 
+a shared pulseaudio socket. Video is shared by sharing the X11 socket.
+Please see https://gitlab.com/qwertzlbert/teamspeak3-podman for more details
+ 
+  Options:
+    -h,--help          print this help message.
+    -n,--name [param]  define the image name to use (optional) (default: "ts3pod")
+    -u,--uid [param]   define the uid to use (optional) (default: 1600)
+EOF
+}
+
+# process and assign command line arguments
+_temp=$($GETOPT -o hn::u:: --long help,name::,uid:: -n $PROG -- "$@")
+if [ $? != 0 ] ; then echo "bad command line options" >&2 ; exit 1 ; fi
+eval set -- "$_temp"
+
+_OPT_NAME="ts3pod"
+_OPT_UID=1600
+ 
+while true ; do
+        case "$1" in
+        -h|--help)
+                        usage; exit 0 ;;
+
+        -n|--name)
+                        if [[ -z "$2" ]]; then
+                                _OPT_NAME="ts3pod"
+                        else
+                                _OPT_NAME=$2
+                        fi
+                        shift 2; continue ;;
+        -u|--uid)
+                        if [[ -z "$2" ]]; then
+                                _OPT_UID=1600
+                        else
+                                _OPT_UID=$2
+                        fi
+                        shift 2; continue ;;
+        *)
+            break
+            ;;
+        esac
+done
+
+
 crt=$(buildah from ubuntu)
 
 buildah run $crt apt-get update
@@ -34,7 +85,7 @@ buildah run $crt env DEBIAN_FRONTEND=noninteractive apt-get install -y \
 buildah copy $crt pulse-client.conf /etc/pulse/client.conf
 
 # setup spotify user and pulseaudio
-buildah run $crt useradd --create-home -u 1600 -d /home/ts3_user ts3_user
+buildah run $crt useradd --create-home -u $_OPT_UID -d /home/ts3_user ts3_user
 buildah run $crt gpasswd -a ts3_user audio 
 buildah run $crt chown -R ts3_user:ts3_user /home/ts3_user
 
@@ -53,4 +104,4 @@ buildah config --entrypoint "cp -a /tmp/pulse-cookie /tmp/pulse-ts3-cookie && \
 							PULSE_SERVER=unix:/tmp/pulse-socket /TeamSpeak3-Client-linux_amd64/ts3client_runscript.sh" \
 							$crt
 
-buildah commit $crt ts3pod
+buildah commit $crt $_OPT_NAME
